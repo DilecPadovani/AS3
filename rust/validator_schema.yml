@@ -8,4 +8,6 @@ Root:
         +type: Object
         dilec:
           +type: Integer
-          +max: 7
+          +max: 1
+          +default: 2
+          

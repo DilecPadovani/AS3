@@ -2,7 +2,7 @@
 |----------|------|------|
 | `Object` |  - | -|
 | `String` |   - | **max lenght** [*Integer*]: `MaxLength` ,`maxLength`, `max_length`<br> **min lenght** [*Integer*]: `MinLength` ,`minLength`, `min_length`  </br> **regex** [*String*]: `regex` |
-| `Integer` |   - |**max** [*Integer*] : `max` </br> **min** [*Integer*]: `min`|
+| `Integer` |   - |**max** [*Integer*] : `max` </br> **min** [*Integer*]: `min` </br>**default** [*Integer*]: `default`|
 | `Map` | **key** [*String*, *Bool*, *Date*, *Integer*, *Double*] : `KeyType` </br> **value** [*Json_type*] : `ValueType`  | -|
 | `List` | **value** [*Json_type*] : `ValueType` |- |
 

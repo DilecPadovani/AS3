@@ -6,7 +6,7 @@ use crate::{
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, default};
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AS3Validator {
@@ -22,6 +22,7 @@ pub enum AS3Validator {
     Integer {
         minimum: Option<i64>,
         maximum: Option<i64>,
+        default: Option<i64>,
     },
     #[serde(rename(serialize = "Decimal"))]
     Decimal {
@@ -44,6 +45,14 @@ pub enum AS3Validator {
 }
 
 impl AS3Validator {
+    fn has_default(&self) -> Option<AS3Data> {
+        match self {
+            AS3Validator::Integer {
+                default: Some(x), ..
+            } => Some(AS3Data::Integer(x.clone())),
+            _ => None,
+        }
+    }
     pub fn validate(&self, data: &AS3Data) -> Result<(), As3JsonPath<AS3ValidationError>> {
         self.check(data, &mut "ROOT".to_string())
     }
@@ -56,10 +65,13 @@ impl AS3Validator {
         match (self, data) {
             (AS3Validator::Nullable(..), AS3Data::Null) => return Ok(()),
             (_, AS3Data::Null) => {
+                if let Some(default) = self.has_default() {
+                    return self.check(&default, path);
+                }
                 return Err(As3JsonPath(
                     path.to_string(),
                     AS3ValidationError::NotNullableNull,
-                ))
+                ));
             }
             _ => {}
         };
@@ -119,7 +131,14 @@ impl AS3Validator {
                 }
                 Ok(())
             }
-            (AS3Validator::Integer { minimum, maximum }, AS3Data::Integer(number)) => {
+            (
+                AS3Validator::Integer {
+                    minimum,
+                    maximum,
+                    default,
+                },
+                AS3Data::Integer(number),
+            ) => {
                 if let Some(minimum) = minimum {
                     if number < minimum {
                         return Err(As3JsonPath(
@@ -437,8 +456,22 @@ impl AS3Validator {
                 } else {
                     None
                 };
+                let default =
+                    if let Some(serde_yaml::Value::Number(max_length)) = inner.get("+default") {
+                        if let Some(max_length) = max_length.as_i64() {
+                            Some(max_length)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
 
-                AS3Validator::Integer { minimum, maximum }
+                AS3Validator::Integer {
+                    minimum,
+                    maximum,
+                    default,
+                }
             }
             ("Decimal" | "Float", serde_yaml::Value::Mapping(inner)) => {
                 let maximum = if let Some(serde_yaml::Value::Number(max_length)) = inner.get("+max")
@@ -512,6 +545,7 @@ impl AS3Validator {
                 "Integer" => AS3Validator::Integer {
                     minimum: None,
                     maximum: None,
+                    default: None,
                 },
                 "Decimal" => AS3Validator::Decimal {
                     minimum: None,
