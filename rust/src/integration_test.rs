@@ -12,9 +12,12 @@ fn verify(
     validator_config: &serde_yaml::Value,
     expected: Result<(), As3JsonPath<AS3ValidationError>>,
 ) {
-    let data = AS3Data::from(data);
+    let mut data = AS3Data::from(data);
     let validator = AS3Validator::from(&validator_config).unwrap();
-    assert_eq!(validator.validate(&data), expected);
+    match validator.validate(&mut data) {
+        Ok(_) => assert!(expected.is_ok()),
+        Err(e) => assert_eq!(Err(e), expected),
+    }
 }
 
 #[test]
@@ -226,7 +229,7 @@ fn with_minimum_error() {
     ]));
 
     assert_eq!(
-        validator.validate(&AS3Data::from(&json)),
+        validator.validate(&mut AS3Data::from(&json)),
         Err(As3JsonPath(
             "ROOT -> age".to_string(),
             AS3ValidationError::MinimumInteger {
@@ -242,7 +245,7 @@ fn with_minimum_error() {
     });
 
     assert_eq!(
-        validator.validate(&AS3Data::from(&json)),
+        validator.validate(&mut AS3Data::from(&json)),
         Err(As3JsonPath(
             "ROOT -> children".to_string(),
             AS3ValidationError::MinimumInteger {
@@ -257,7 +260,7 @@ fn with_minimum_error() {
       "children": 20,
     });
 
-    assert_eq!(validator.validate(&AS3Data::from(&json)), Ok(()))
+    assert!(validator.validate(&mut AS3Data::from(&json)).is_ok())
 }
 
 #[test]

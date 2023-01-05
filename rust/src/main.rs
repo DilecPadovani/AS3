@@ -38,8 +38,8 @@ fn main() -> Result<(), String> {
     };
 
     let validator = AS3Validator::from(&definition).unwrap();
-    match validator.validate(&AS3Data::from(&data)) {
-        Ok(_) => println!("✅✅ The provided schema matches the data"),
+    match validator.validate(&mut AS3Data::from(&data)) {
+        Ok(aa) => println!("✅✅ The provided schema matches the data \n\n {:#?}", aa),
         Err(e) => return Err(format!("❌❌ {}", e.to_string())),
     }
     Ok(())

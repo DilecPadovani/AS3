@@ -6,7 +6,7 @@ use crate::{
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, default};
+use std::{collections::HashMap, default, ops::Deref};
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AS3Validator {
@@ -53,13 +53,15 @@ impl AS3Validator {
             _ => None,
         }
     }
-    pub fn validate(&self, data: &AS3Data) -> Result<(), As3JsonPath<AS3ValidationError>> {
-        self.check(data, &mut "ROOT".to_string())
+    pub fn validate(&self, data: &mut AS3Data) -> Result<AS3Data, As3JsonPath<AS3ValidationError>> {
+        let mut data = data.clone();
+        self.check(&mut data, &mut "ROOT".to_string())?;
+        Ok(data.clone())
     }
 
     fn check(
         &self,
-        data: &AS3Data,
+        mut data: &mut AS3Data,
         path: &mut String,
     ) -> Result<(), As3JsonPath<AS3ValidationError>> {
         // TODO:
@@ -68,13 +70,13 @@ impl AS3Validator {
         // if a field has a +default and value is null, then use default as value
         // if a not nullable field's value is null , then return ERR
 
-        match (self, data) {
+        match (self, &mut data) {
             (AS3Validator::Nullable(..), AS3Data::Null) => return Ok(()),
             (_, AS3Data::Null) => {
                 // TODO:
                 // remove this, put it in root
-                if let Some(default) = self.default() {
-                    return self.check(&default, path);
+                if let Some(mut default) = self.default() {
+                    return self.check(&mut default, path);
                 }
                 return Err(As3JsonPath(
                     path.to_string(),
@@ -84,23 +86,28 @@ impl AS3Validator {
             _ => {}
         };
 
-        match (self, data) {
+        match (self, &mut data) {
             (AS3Validator::Object(validator_inner), AS3Data::Object(data_inner)) => {
                 let res: Vec<Result<(), As3JsonPath<AS3ValidationError>>> = validator_inner
-                    .into_par_iter()
+                    .iter()
                     .map(|(validator_key, validator_value)| {
                         let mut temp_path = path.clone();
                         temp_path.push_str(" -> ");
                         temp_path.push_str(&validator_key.as_str());
 
-                        if let Some(value_from_key) = data_inner.get(validator_key) {
+                        if let Some(value_from_key) = data_inner.get_mut(validator_key) {
                             return validator_value.check(value_from_key, &mut temp_path);
                         }
 
                         // if a key is absent and a default is provided continue using the default.
-                        if let Some(default_value_if_key_is_missing) = validator_value.default() {
+                        if let Some(mut default_value_if_key_is_missing) = validator_value.default()
+                        {
+                            data_inner.insert(
+                                validator_key.clone(),
+                                default_value_if_key_is_missing.clone().into(),
+                            );
                             return validator_value
-                                .check(&default_value_if_key_is_missing, &mut temp_path);
+                                .check(&mut default_value_if_key_is_missing, &mut temp_path);
                         }
 
                         Err(As3JsonPath(
@@ -156,7 +163,7 @@ impl AS3Validator {
                 AS3Data::Integer(number),
             ) => {
                 if let Some(minimum) = minimum {
-                    if number < minimum {
+                    if number.deref() < minimum {
                         return Err(As3JsonPath(
                             path.to_string(),
                             AS3ValidationError::MinimumInteger {
@@ -168,7 +175,7 @@ impl AS3Validator {
                 }
 
                 if let Some(maximum) = maximum {
-                    if number > maximum {
+                    if number.deref() > maximum {
                         return Err(As3JsonPath(
                             path.to_string(),
                             AS3ValidationError::MaximumInteger {
@@ -182,7 +189,7 @@ impl AS3Validator {
             }
             (AS3Validator::Decimal { minimum, maximum }, AS3Data::Decimal(number)) => {
                 if let Some(minimum) = minimum {
-                    if number < minimum {
+                    if number.deref() < minimum {
                         return Err(As3JsonPath(
                             path.to_string(),
                             AS3ValidationError::MinimumDouble {
@@ -194,7 +201,7 @@ impl AS3Validator {
                 }
 
                 if let Some(maximum) = maximum {
-                    if number > maximum {
+                    if number.deref() > maximum {
                         return Err(As3JsonPath(
                             path.to_string(),
                             AS3ValidationError::MinimumDouble {
@@ -258,8 +265,8 @@ impl AS3Validator {
                 // Ok(items.iter().all(|item| items_type.check(item)))
 
                 let res = items
-                    .iter()
-                    .map(|item| items_type.check(item, path))
+                    .iter_mut()
+                    .map(|item| items_type.check(&mut *item, path))
                     .collect::<Vec<Result<(), As3JsonPath<AS3ValidationError>>>>();
 
                 match res
@@ -304,13 +311,13 @@ impl AS3Validator {
         path: &mut String,
     ) -> Result<(), String> {
         let _ = match wanted_type {
-            AS3Validator::String { .. } => wanted_type.check(&AS3Data::String(key.clone()), path),
+            AS3Validator::String { .. } => wanted_type.check(&mut AS3Data::String(key.clone()), path),
             AS3Validator::Integer { .. } => {
                 let Ok(n) = key.clone().parse::<i64>() else {
                     return Err(format!("The Key `{}` can't be converted to an Integer", key));
                 };
 
-                match wanted_type.check(&&AS3Data::Integer(n), path) {
+                match wanted_type.check(&mut AS3Data::Integer(n), path) {
                     Ok(()) => Ok(()),
                     Err(e) => return Err(e.to_string()),
                 }
@@ -319,7 +326,7 @@ impl AS3Validator {
                 "true" | "false" | "1" | "0" => Ok(()),
                 _ => return Err(format!("The Key `{}` can't be converted to a Boolean", key)),
             },
-            AS3Validator::Date => match wanted_type.check(&AS3Data::String(key.clone()), path) {
+            AS3Validator::Date => match wanted_type.check(&mut AS3Data::String(key.clone()), path) {
                 Ok(())=> Ok(()),
                 _ => return Err(format!("The Key `{}` can't be converted to a Date", key)),
             },

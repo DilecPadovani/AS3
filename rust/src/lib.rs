@@ -48,10 +48,13 @@ pub fn verify(
     data: String,
     validator_config: String,
 ) -> Result<(), As3JsonPath<AS3ValidationError>> {
-    let data = AS3Data::from(&serde_json::from_str(&data).unwrap());
+    let mut data = AS3Data::from(&serde_json::from_str(&data).unwrap());
     let ym = serde_yaml::from_str(&validator_config).unwrap();
     let validator = AS3Validator::from(&ym).unwrap();
-    validator.validate(&data)
+    match validator.validate(&mut data) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(test)]
