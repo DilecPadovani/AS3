@@ -45,7 +45,7 @@ pub enum AS3Validator {
 }
 
 impl AS3Validator {
-    fn has_default(&self) -> Option<AS3Data> {
+    fn default(&self) -> Option<AS3Data> {
         match self {
             AS3Validator::Integer {
                 default: Some(x), ..
@@ -62,10 +62,18 @@ impl AS3Validator {
         data: &AS3Data,
         path: &mut String,
     ) -> Result<(), As3JsonPath<AS3ValidationError>> {
+        // TODO:
+        // option 2:
+        // if field is missing consider it as null
+        // if a field has a +default and value is null, then use default as value
+        // if a not nullable field's value is null , then return ERR
+
         match (self, data) {
             (AS3Validator::Nullable(..), AS3Data::Null) => return Ok(()),
             (_, AS3Data::Null) => {
-                if let Some(default) = self.has_default() {
+                // TODO:
+                // remove this, put it in root
+                if let Some(default) = self.default() {
                     return self.check(&default, path);
                 }
                 return Err(As3JsonPath(
@@ -84,9 +92,17 @@ impl AS3Validator {
                         let mut temp_path = path.clone();
                         temp_path.push_str(" -> ");
                         temp_path.push_str(&validator_key.as_str());
+
                         if let Some(value_from_key) = data_inner.get(validator_key) {
                             return validator_value.check(value_from_key, &mut temp_path);
                         }
+
+                        // if a key is absent and a default is provided continue using the default.
+                        if let Some(default_value_if_key_is_missing) = validator_value.default() {
+                            return validator_value
+                                .check(&default_value_if_key_is_missing, &mut temp_path);
+                        }
+
                         Err(As3JsonPath(
                             path.to_string(),
                             AS3ValidationError::MissingKey {

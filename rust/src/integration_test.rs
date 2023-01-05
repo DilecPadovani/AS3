@@ -100,6 +100,7 @@ fn with_decimal_error() {
                 expected: AS3Validator::Integer {
                     minimum: None,
                     maximum: None,
+                    default: None,
                 },
                 got: AS3Data::Decimal(20.18),
             },
@@ -146,6 +147,7 @@ fn with_string_error() {
                 expected: AS3Validator::Integer {
                     minimum: None,
                     maximum: None,
+                    default: None,
                 },
                 got: AS3Data::String("2018".to_string()),
             },
@@ -210,6 +212,7 @@ fn with_minimum_error() {
             AS3Validator::Integer {
                 minimum: Some(20),
                 maximum: None,
+                default: None,
             },
         ),
         (
@@ -217,6 +220,7 @@ fn with_minimum_error() {
             AS3Validator::Integer {
                 minimum: Some(2),
                 maximum: None,
+                default: None,
             },
         ),
     ]));
